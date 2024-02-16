@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-from io import StringIO
-import json
-from datetime import datetime
+from helper import apply_filtering, generate_filename, to_csv
 
 
 # Set the page to wide mode
@@ -24,7 +22,7 @@ with col2:
 # Input fields for minimum number of followers and tweets
 col1, col2 = st.columns(2)
 with col1:
-    exclude_keywords = st.text_input("Exclude in bio", "")
+    exclude_keywords = st.text_input("Exclude in bio", "crypto, cryptocurrency, bitcoin, btc")
 with col2:
     exclude_keywords_and = st.text_input("Also exclude", "")
 
@@ -32,9 +30,10 @@ with col2:
 # Input fields for minimum number of followers and tweets
 col1, col2 = st.columns(2)
 with col1:
-    include_location = st.text_input("Include location", "")
+    include_location = st.text_input("Include location", "Alabama, Alaska, Arizona, Arkansas, California, Colorado, Connecticut, Delaware, Florida, Georgia, Hawaii, Idaho, Illinois, Indiana, Iowa, Kansas, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri, Montana, Nebraska, Nevada, New Hampshire, New Jersey, New Mexico, New York, North Carolina, North Dakota, Ohio, Oklahoma, Oregon, Pennsylvania, Rhode Island, South Carolina, South Dakota, Tennessee, Texas, Utah, Vermont, Virginia, Washington, West Virginia, Wisconsin, Wyoming, AL, AK, AZ, AR, CA, CO, CT, DE, FL, GA, HI, ID, IL, IN, IA, KS, KY, LA, ME, MD, MA, MI, MN, MS, MO, MT, NE, NV, NH, NJ, NM, NY, NC, ND, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VT, VA, WA, WV, WI, WY, United States, US, USA, The USA, United Kingdom, UK, England, Canada, CA, Australia, AU, Ireland, IE, New Zealand, NZ, Singapore, SG, Malta, MT, Bahamas, BS, Barbados, BB, Cyprus, CY, Luxembourg, LU, Switzerland, CH, Belgium, BE, Netherlands, NL, Sweden, SE, Norway, NO, Denmark, DK, Finland, FI, New York, New York City, NYC, Los Angeles, LA, Chicago, Houston, Phoenix, Philadelphia, San Antonio, San Diego, Dallas, San Jose, Austin, Jacksonville, Fort Worth, Columbus, Charlotte, San Francisco, Indianapolis, Seattle, Denver, Washington D.C., Boston, El Paso, Nashville, Detroit, Oklahoma City, Portland, Las Vegas, Memphis, Louisville, Baltimore, Milwaukee, Albuquerque, Tucson, Fresno, Sacramento, Kansas City, Mesa, Atlanta, Omaha, Colorado Springs, Raleigh, Miami, Long Beach, Virginia Beach, Oakland, Minneapolis, Tulsa, Arlington, Tampa, London, Birmingham, Manchester, Glasgow, Liverpool, Edinburgh, Leeds, Bristol, Sheffield, Cardiff, Toronto, Montreal, Vancouver, Calgary, Ottawa, Edmonton, Sydney, Melbourne, Brisbane, Perth, Adelaide, Dublin, Cork, Auckland, Wellington, Christchurch, Singapore City, Valletta, Nassau, Bridgetown, Nicosia, Luxembourg City, Zurich, Geneva, Brussels, Antwerp, Amsterdam, Rotterdam, Stockholm, Gothenburg, Oslo, Bergen, Copenhagen, Aarhus, Helsinki, Tampere")
+    
 with col2:
-    exclude_location = st.text_input("Exclude location", "")
+    exclude_location = st.text_input("Exclude location", "India, Africa, Nigeria, Singapore, Philippines, China, Russia, Belarus, Pakistan, Bangladesh, Venezuela, Iran, Iraq, Syria, Afghanistan, Sudan, North Korea, Myanmar, Yemen, Libya, Somalia, Zimbabwe, Haiti, Honduras, Guatemala, El Salvador, Nicaragua, Mongolia, Papua New Guinea")
 
 # Checkboxes for including or excluding empty locations
 empty_location_option = st.radio(
@@ -44,78 +43,9 @@ empty_location_option = st.radio(
 
 col1, col2 = st.columns(2)
 with col1:
-    min_followers = st.number_input("Min # of followers", min_value=0, value=0, step=1)
+    min_followers = st.number_input("Min # of followers", min_value=0, value=100, step=25)
 with col2:
-    min_tweets = st.number_input("Min # of tweets", min_value=0, value=0, step=1)
-
-def apply_filtering(df, include_list, exclude_list, include_list_and, exclude_list_and, min_followers, min_tweets, include_loc, exclude_loc, empty_location_option):
-    if include_list:
-        pattern_include = '|'.join(include_list)
-        df = df[df['description'].str.contains(pattern_include, case=False, na=False)]
-    if exclude_list:
-        pattern_exclude = '|'.join(exclude_list)
-        df = df[~df['description'].str.contains(pattern_exclude, case=False, na=False)]
-    
-    # Apply AND logic for include and exclude lists
-    for keyword in include_list_and:
-        df = df[df['description'].str.contains(keyword, case=False, na=False)]
-    for keyword in exclude_list_and:
-        df = df[~df['description'].str.contains(keyword, case=False, na=False)]
-    
-    # Parse the "public_metrics" column and filter by followers and tweets
-    metrics_df = pd.json_normalize(df['public_metrics'].apply(json.loads))
-    df['followers_count'] = metrics_df['followers_count']
-    df['tweet_count'] = metrics_df['tweet_count']
-    df = df[(df['followers_count'] >= min_followers) & (df['tweet_count'] >= min_tweets)]
-    
-    # Filter by location
-    if include_loc:
-        pattern_include_loc = '|'.join(include_loc)
-        df = df[df['location'].str.contains(pattern_include_loc, case=False, na=False)]
-    if exclude_loc:
-        pattern_exclude_loc = '|'.join(exclude_loc)
-        df = df[~df['location'].str.contains(pattern_exclude_loc, case=False, na=False)]
-    
-    # Handling empty locations based on the radio button selection
-    if empty_location_option == 'Include':
-        df = df[(df['location'].isna()) | (df['location'] != '')]
-    elif empty_location_option == 'Exclude':
-        df = df[df['location'].notna() & (df['location'] != '')]
-    elif empty_location_option == 'Only':
-        df = df[df['location'].isna()]
-    
-    return df
-
-def generate_filename(include_list, exclude_list, include_list_and, exclude_list_and, min_followers, min_tweets, include_loc, exclude_loc, empty_location_option):
-    timestamp = datetime.now().strftime("%m%d")
-    filename = f"leads_{timestamp}"
-    
-    if include_list:
-        filename += f"_inc-{'-'.join(include_list)}"
-    if exclude_list:
-        filename += f"_exc-{'-'.join(exclude_list)}"
-    if include_list_and:
-        filename += f"_andinc-{'-'.join(include_list_and)}"
-    if exclude_list_and:
-        filename += f"_andexc-{'-'.join(exclude_list_and)}"
-    if min_followers > 0:
-        filename += f"_minfollowers-{min_followers}"
-    if min_tweets > 0:
-        filename += f"_mintweets-{min_tweets}"
-    if include_loc:
-        filename += f"_incloc-{'-'.join(include_loc)}"
-    if exclude_loc:
-        filename += f"_excloc-{'-'.join(exclude_loc)}"
-    if empty_location_option != 'No preference':
-        filename += f"_{empty_location_option.lower()}emptyloc"
-    
-    filename += ".csv"
-    return filename
-
-def to_csv(df):
-    output = StringIO()
-    df.to_csv(output, index=False)
-    return output.getvalue()
+    min_tweets = st.number_input("Min # of tweets", min_value=0, value=200, step=25)
 
 
 if uploaded_file is not None:
@@ -134,7 +64,7 @@ if uploaded_file is not None:
         
         st.write(f"Total rows after filtering: {len(filtered_df)} (from {original_rows} original rows)")
         st.write("Preview of filtered data:")
-        st.dataframe(filtered_df.head(10))
+        st.dataframe(filtered_df.head(20))
 
         # Download button
         if len(filtered_df) > 0:
